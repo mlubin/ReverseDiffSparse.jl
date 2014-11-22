@@ -288,6 +288,7 @@ forwardvalue(x, placevalues, placeindex_in) = float(x)
 # sometimes the results aren't needed anyway,
 # because the code may compute derivatives wrt constants.
 log(x) = x <= 0 ? NaN : Base.log(x)
+^(x::Float64,y::Float64) = ccall((:pow,Base.libm_name),  Float64, (Float64,Float64), x, y)
 
 function revpass(x::ExprNode, expr_out)
     @assert isexpr(expr_out, :block)
