@@ -1,9 +1,11 @@
-using Graphs
+#using Graphs
+using LightGraphs
 import DataStructures
 
 
 function gen_adjlist(IJ,nel)
-    g = simple_graph(nel, is_directed=false)
+    #g = simple_graph(nel, is_directed=false)
+    g = Graph(nel)
     for (i,j) in IJ
         i == j && continue
         add_edge!(g, i, j)
@@ -17,14 +19,16 @@ export gen_adjlist
 # acyclic coloring algorithm of Gebremdehin, Tarafdar, Manne, and Pothen
 # "New Acyclic and Star Coloring Algorithms with Application to Computing Hessians"
 # SIAM J. Sci. Comput. 2007
-function acyclic_coloring(g)
-    @assert !is_directed(g)
+function acyclic_coloring(g::Graph)
+    #@assert !is_directed(g)
     
     num_colors = 0
     forbiddenColors = Int[]
     firstNeighbor = Array((Int,Int),0)
-    firstVisitToTree = [normalize(source(e),target(e)) => (0,0) for e in edges(g)]
-    color = fill(0, num_vertices(g))
+    #firstVisitToTree = [normalize(source(e),target(e)) => (0,0) for e in edges(g)]
+    firstVisitToTree = [normalize(src(e),dst(e)) => (0,0) for e in edges(g)]
+    #color = fill(0, num_vertices(g))
+    color = fill(0, nv(g))
     colored(i) = (color[i] != 0)
     # disjoint set forest of edges in the graph
     S = DataStructures.DisjointSets{(Int,Int)}(collect(keys(firstVisitToTree)))
@@ -61,14 +65,18 @@ function acyclic_coloring(g)
         end
     end
 
-    for v in 1:num_vertices(g)
-        for w in out_neighbors(v,g)
+    #for v in 1:num_vertices(g)
+    for v in 1:nv(g)
+        #for w in out_neighbors(v,g)
+        for w in neighbors(g,v)
             colored(w) || continue
             forbiddenColors[color[w]] = v
         end
-        for w in out_neighbors(v,g)
+        #for w in out_neighbors(v,g)
+        for w in neighbors(g,v)
             colored(w) || continue
-            for x in out_neighbors(w,g)
+            #for x in out_neighbors(w,g)
+            for x in neighbors(g,w)
                 colored(x) || continue
                 if forbiddenColors[color[x]] != v
                     prevent_cycle(v,w,x)
@@ -92,13 +100,16 @@ function acyclic_coloring(g)
             color[v] = num_colors
         end
 
-        for w in out_neighbors(v,g)
+        #for w in out_neighbors(v,g)
+        for w in neighbors(g,v)
             colored(w) || continue
             grow_star(v,w)
         end
-        for w in out_neighbors(v,g)
+        #for w in out_neighbors(v,g)
+        for w in neighbors(g,v)
             colored(w) || continue
-            for x in out_neighbors(w,g)
+            #for x in out_neighbors(w,g)
+            for x in neighbors(g,w)
                 (colored(x) && x != v) || continue
                 if color[x] == color[v]
                     merge_trees(v,w,x)
@@ -111,13 +122,15 @@ function acyclic_coloring(g)
 end
 
 function twocolorset_of_edge(e,g,color)
-    i = source(e,g)
-    j = target(e,g)
+    #i = source(e,g)
+    i = src(e)
+    #j = target(e,g)
+    j = dst(e)
     return Set([color[i], color[j]])
 end
 
 immutable RecoveryInfo
-    twocolorgraphs::Vector{SimpleGraph}
+    twocolorgraphs::Vector{Graph}
     vertexmap::Vector{Vector{Int}}
     postorder::Vector{Vector{Int}}
     parents::Vector{Vector{Int}}
@@ -133,20 +146,25 @@ function recovery_preprocess(g,color; verify_acyclic::Bool=false)
             twocoloredges[twocolor] = Array((Int,Int),0)
             twocolorvertices[twocolor] = Set{Int}()
         end
-        push!(twocoloredges[twocolor], (source(e,g),target(e,g)))
-        push!(twocolorvertices[twocolor], source(e,g))
-        push!(twocolorvertices[twocolor], target(e,g))
+        #push!(twocoloredges[twocolor], (source(e,g),target(e,g)))
+        #push!(twocolorvertices[twocolor], source(e,g))
+        #push!(twocolorvertices[twocolor], target(e,g))
+        push!(twocoloredges[twocolor], (src(e),dst(e)))
+        push!(twocolorvertices[twocolor], src(e))
+        push!(twocolorvertices[twocolor], dst(e))
     end
 
-    twocolorgraphs = SimpleGraph[]
+    twocolorgraphs = Graph[]
     # map from vertices in two-color subgraphs to original vertices
     vertexmap = Array(Vector{Int},0)
-    revmap = zeros(Int,num_vertices(g))
+    #revmap = zeros(Int,num_vertices(g))
+    revmap = zeros(Int,nv(g))
     for twocolor in keys(twocoloredges)
         edgeset = twocoloredges[twocolor]
         vertexset = twocolorvertices[twocolor]
         n = length(vertexset)
-        s = simple_graph(n, is_directed=false)
+        #s = simple_graph(n, is_directed=false)
+        s = Graph(n)
 
         vmap = Int[]
         for v in vertexset
