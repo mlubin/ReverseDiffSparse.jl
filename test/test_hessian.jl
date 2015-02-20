@@ -91,7 +91,7 @@ end
 I,J = prep_sparse_hessians(exlist,2)
 V = zeros(length(I))
 lambda = [1.0,2.0]
-eval_hess!(V, exlist, val, lambda)
+eval_hess!(V, exlist, val[1:2], lambda)
 @test_approx_eq sparse(I,J,V) diagm([4.,2.])
 
 # test linear expressions

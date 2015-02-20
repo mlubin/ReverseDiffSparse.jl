@@ -272,10 +272,9 @@ end
 function indirect_recover(hessian_matmat!, nnz, rinfo::RecoveryInfo, stored_values, x, inputvals, fromcanonical, R, dualvec, dualout, V)
     N = length(rinfo.color)
     
-    #R = zeros(N,num_colors)
-    fill!(R,0.0)
+    R[fromcanonical,:] = 0.0
     for i in 1:N
-        R[i,rinfo.color[i]] = 1
+        R[fromcanonical[i],rinfo.color[i]] = 1
     end
 
     hessian_matmat!(R,x, dualvec, dualout, inputvals, fromcanonical)
@@ -288,7 +287,7 @@ function indirect_recover(hessian_matmat!, nnz, rinfo::RecoveryInfo, stored_valu
 
     for i in 1:N
         k += 1
-        V[k] = R[i,rinfo.color[i]]
+        V[k] = R[fromcanonical[i],rinfo.color[i]]
     end
 
     for t in 1:length(rinfo.twocolorgraphs)
@@ -306,7 +305,7 @@ function indirect_recover(hessian_matmat!, nnz, rinfo::RecoveryInfo, stored_valu
             i = vmap[v]
             j = vmap[p]
 
-            value = R[i,rinfo.color[j]] - stored_values[v]
+            value = R[fromcanonical[i],rinfo.color[j]] - stored_values[v]
             stored_values[p] += value
 
             k += 1
@@ -342,7 +341,7 @@ function gen_hessian_sparse_color_parametric(s::SymbolicOutput, num_total_vars, 
 
     @assert length(color) == num_vertices(g)
 
-    R = Array(Float64,num_vertices(g),num_colors)
+    R = Array(Float64,num_total_vars,num_colors)
     
     rinfo = recovery_preprocess(g, color)
 

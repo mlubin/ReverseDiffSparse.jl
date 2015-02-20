@@ -223,18 +223,19 @@ function gen_hessian_matmat_parametric(s::SymbolicOutput, fgrad = genfgrad_param
     hexpr = quote
         local _HESS_MATMAT_
         function _HESS_MATMAT_{T,Q}(S, x::Vector{T}, dualvec::Vector{Dual{T}}, dualout::Vector{Dual{T}}, inputvals::Q, fromcanonical)
-            # S uses canonical indices
             N = size(S,1)
-            @assert length(x) >= N
+            @assert length(x) == N
+            @assert length(fromcanonical) <= N
             for k in 1:size(S,2)
-                for i in 1:N
-                    r = fromcanonical[i]
-                    dualvec[r] = Dual(x[r], S[i,k])
-                    dualout[r] = zero(Dual{T})
+                for r in 1:length(fromcanonical)
+                    i = fromcanonical[r]
+                    dualvec[i] = Dual(x[i], S[i,k])
+                    dualout[i] = zero(Dual{T})
                 end
                 $(fgrad)(dualvec, IdentityArray(), dualout, IdentityArray(),inputvals...)
-                for i in 1:N
-                    S[i,k] = epsilon(dualout[fromcanonical[i]])
+                for r in 1:length(fromcanonical)
+                    i = fromcanonical[r]
+                    S[i,k] = epsilon(dualout[i])
                 end
             end
             #return S
