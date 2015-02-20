@@ -28,31 +28,39 @@ function compute_hessian_sparsity_IJ_parametric(s::SymbolicOutput)
 
     f = eval(fexpr)
 
-    return (x::SymbolicOutput)-> (edgelist__ = Set{MyPair{Int}}(); f(edgelist__,x.inputvals...); edgelist_to_IJ(edgelist__,x))
+    return (x::SymbolicOutput,tocanonical)-> (edgelist__ = Set{MyPair{Int}}(); f(edgelist__,x.inputvals...); edgelist_to_IJ(edgelist__,x,tocanonical))
 
 end
 
 function compute_hessian_sparsity_IJ(s::SymbolicOutput)
     prepare_indexlist(s)
-    compute_hessian_sparsity_IJ_parametric(s)(s)
+    compute_hessian_sparsity_IJ_parametric(s)(s, true)
 end
 
-function edgelist_to_IJ(edgelist,s::SymbolicOutput)
+function edgelist_to_IJ(edgelist,s::SymbolicOutput,tocanonical::Bool)
     I = Array(Int,0)
     J = Array(Int,0)
     sizehint!(I,div(length(edgelist),2))
     sizehint!(J,div(length(edgelist),2))
-    for e in edgelist
-        i = e.first
-        j = e.second
-        if j > i
-            continue # ignore upper triangle
-        else
+    if tocanonical
+        for e in edgelist
+            i = e.first
+            j = e.second
+            (j > i) && continue # ignore upper triangle
             # convert to canonical
             push!(I,s.maptocanonical[i])
             push!(J,s.maptocanonical[j])
         end
+    else
+        for e in edgelist
+            i = e.first
+            j = e.second
+            (j > i) && continue # ignore upper triangle
+            push!(I,i)
+            push!(J,j)
+        end
     end
+
     return I,J
 end
 
@@ -222,20 +230,29 @@ end
 function gen_hessian_matmat_parametric(s::SymbolicOutput, fgrad = genfgrad_parametric(s))
     hexpr = quote
         local _HESS_MATMAT_
-        function _HESS_MATMAT_{T,Q}(S, x::Vector{T}, dualvec::Vector{Dual{T}}, dualout::Vector{Dual{T}}, inputvals::Q, fromcanonical)
+        function _HESS_MATMAT_{T,Q}(S, R, x::Vector{T}, dualvec::Vector{Dual{T}}, dualout::Vector{Dual{T}}, inputvals::Q, fromcanonical, scale=1.0)
             N = size(S,1)
             @assert length(x) == N
             @assert length(fromcanonical) <= N
+            @assert size(S,1) == size(R,1)
+            @assert size(S,2) == size(R,2)
             for k in 1:size(S,2)
                 for r in 1:length(fromcanonical)
                     i = fromcanonical[r]
-                    dualvec[i] = Dual(x[i], S[i,k])
+                    dualvec[i] = Dual(x[i], R[i,k])
                     dualout[i] = zero(Dual{T})
                 end
                 $(fgrad)(dualvec, IdentityArray(), dualout, IdentityArray(),inputvals...)
-                for r in 1:length(fromcanonical)
-                    i = fromcanonical[r]
-                    S[i,k] = epsilon(dualout[i])
+                if scale == 1.0
+                    for r in 1:length(fromcanonical)
+                        i = fromcanonical[r]
+                        S[i,k] += epsilon(dualout[i])
+                    end
+                else
+                    for r in 1:length(fromcanonical)
+                        i = fromcanonical[r]
+                        S[i,k] += scale*epsilon(dualout[i])
+                    end
                 end
             end
             #return S

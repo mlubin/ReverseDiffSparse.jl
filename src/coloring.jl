@@ -269,15 +269,16 @@ function indirect_recover_structure(nnz, rinfo::RecoveryInfo)
     return I,J
 end
 
-function indirect_recover(hessian_matmat!, nnz, rinfo::RecoveryInfo, stored_values, x, inputvals, fromcanonical, R, dualvec, dualout, V)
+function indirect_recover(hessian_matmat!, nnz, rinfo::RecoveryInfo, stored_values, x, inputvals, fromcanonical, matmat_out, matmat_in, dualvec, dualout, V)
     N = length(rinfo.color)
     
-    R[fromcanonical,:] = 0.0
+    matmat_out[fromcanonical,:] = 0.0
+    matmat_in[fromcanonical,:] = 0.0
     for i in 1:N
-        R[fromcanonical[i],rinfo.color[i]] = 1
+        matmat_in[fromcanonical[i],rinfo.color[i]] = 1
     end
 
-    hessian_matmat!(R,x, dualvec, dualout, inputvals, fromcanonical)
+    hessian_matmat!(matmat_out, matmat_in,x, dualvec, dualout, inputvals, fromcanonical)
     
     # now, recover
     @assert length(V) == nnz+N
@@ -287,7 +288,7 @@ function indirect_recover(hessian_matmat!, nnz, rinfo::RecoveryInfo, stored_valu
 
     for i in 1:N
         k += 1
-        V[k] = R[fromcanonical[i],rinfo.color[i]]
+        V[k] = matmat_out[fromcanonical[i],rinfo.color[i]]
     end
 
     for t in 1:length(rinfo.twocolorgraphs)
@@ -305,7 +306,7 @@ function indirect_recover(hessian_matmat!, nnz, rinfo::RecoveryInfo, stored_valu
             i = vmap[v]
             j = vmap[p]
 
-            value = R[fromcanonical[i],rinfo.color[j]] - stored_values[v]
+            value = matmat_out[fromcanonical[i],rinfo.color[j]] - stored_values[v]
             stored_values[p] += value
 
             k += 1
@@ -319,13 +320,14 @@ function indirect_recover(hessian_matmat!, nnz, rinfo::RecoveryInfo, stored_valu
 
 end
 
+
 export acyclic_coloring, indirect_recover
 
 gen_hessian_sparse_color_parametric(s::SymbolicOutput, num_total_vars) =
     gen_hessian_sparse_color_parametric(s,num_total_vars,gen_hessian_matmat_parametric(s),compute_hessian_sparsity_IJ_parametric(s))
 
 function gen_hessian_sparse_color_parametric(s::SymbolicOutput, num_total_vars, hessian_matmat!, hessian_IJ)
-    I,J = hessian_IJ(s)
+    I,J = hessian_IJ(s,true)
     # remove duplicates
     M = sparse(I,J,ones(length(I)))
     I,J = findn(M)
@@ -341,7 +343,8 @@ function gen_hessian_sparse_color_parametric(s::SymbolicOutput, num_total_vars, 
 
     @assert length(color) == num_vertices(g)
 
-    R = Array(Float64,num_total_vars,num_colors)
+    matmat_in = Array(Float64,num_total_vars,num_colors)
+    matmat_out = Array(Float64,num_total_vars,num_colors)
     
     rinfo = recovery_preprocess(g, color)
 
@@ -355,11 +358,56 @@ function gen_hessian_sparse_color_parametric(s::SymbolicOutput, num_total_vars, 
     nnz = num_edges(g)
     
     function eval_h(x,output_values, ex::SymbolicOutput)
-        indirect_recover(hessian_matmat!, nnz, rinfo, stored_values, x, ex.inputvals, ex.mapfromcanonical, R, dualvec, dualout, output_values)
+        indirect_recover(hessian_matmat!, nnz, rinfo, stored_values, x, ex.inputvals, ex.mapfromcanonical, matmat_in, matmat_out, dualvec, dualout, output_values)
     end
 
     return I,J, eval_h
 
+end
+
+# version that merges the coloring step for multiple expressions
+function gen_hessian_sparse_color_parametric(svec::Vector{SymbolicOutput}, num_total_vars, hessian_matmat!, hessian_IJ)
+    I = Int[]
+    J = Int[]
+    for s in svec
+        Is, Js = hessian_IJ(s,false) # NOT canonical indices
+        append!(I, Is)
+        append!(J, Js)
+    end
+    # remove duplicates
+    M = sparse(I,J,ones(length(I)))
+    I,J = findn(M)
+    if length(I) == 0
+        # expressions are actually linear, return dummy function
+        # TODO!!!
+        return I,J, (x,output_values,ex) -> nothing
+    end
+
+
+    g = gen_adjlist(zip(I,J), num_total_vars)
+
+    color, num_colors = acyclic_coloring(g)
+
+    @assert length(color) == num_vertices(g)
+
+    R = Array(Float64,num_total_vars,num_colors)
+
+    rinfo = recovery_preprocess(g, color)
+
+    stored_values = Array(Float64,num_vertices(g))
+    # vectors for hessian-vec product
+    dualvec = Array(Dual{Float64}, num_total_vars)
+    dualout = Array(Dual{Float64}, num_total_vars)
+
+    I,J = indirect_recover_structure(num_edges(g), rinfo)
+
+    nnz = num_edges(g)
+
+    function eval_h(x,output_values, ex::SymbolicOutput)
+        indirect_recover(hessian_matmat!, nnz, rinfo, stored_values, x, ex.inputvals, ex.mapfromcanonical, R, dualvec, dualout, output_values)
+    end
+
+    return I,J, eval_h
 
 end
 
