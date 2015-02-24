@@ -269,7 +269,7 @@ function indirect_recover_structure(nnz, rinfo::RecoveryInfo)
     return I,J
 end
 
-function indirect_recover(hessian_matmat!, nnz, rinfo::RecoveryInfo, stored_values, x, inputvals, fromcanonical, matmat_out, matmat_in, dualvec, dualout, V)
+function indirect_recover(hessian_matmat!::Function, nnz, rinfo::RecoveryInfo, stored_values, x, inputvals, fromcanonical, matmat_out, matmat_in, dualvec, dualout, V)
     N = length(rinfo.color)
     
     matmat_out[fromcanonical,:] = 0.0
@@ -320,7 +320,7 @@ function indirect_recover(hessian_matmat!, nnz, rinfo::RecoveryInfo, stored_valu
 
 end
 
-function indirect_recover(hessian_matmat!, scale::Vector{Float64}, nnz, rinfo::RecoveryInfo, stored_values, x, svec::Vector{SymbolicOutput}, matmat_out, matmat_in, dualvec, dualout, V)
+function indirect_recover(hessian_matmat!::Vector{Function}, scale::DenseVector{Float64}, nnz, rinfo::RecoveryInfo, stored_values, x, svec::Vector{SymbolicOutput}, matmat_out, matmat_in, dualvec, dualout, V)
     N = length(rinfo.color)
     @assert N == length(x)
 
@@ -332,7 +332,7 @@ function indirect_recover(hessian_matmat!, scale::Vector{Float64}, nnz, rinfo::R
     end
 
     for r in 1:length(svec)
-        hessian_matmat!(matmat_out, matmat_in,x, dualvec, dualout, svec[r].inputvals, svec[r].mapfromcanonical, scale[r])
+        hessian_matmat![r](matmat_out, matmat_in,x, dualvec, dualout, svec[r].inputvals, svec[r].mapfromcanonical, scale[r])
     end
 
     # now, recover
@@ -421,11 +421,11 @@ function gen_hessian_sparse_color_parametric(s::SymbolicOutput, num_total_vars, 
 end
 
 # version that merges the coloring step for multiple expressions
-function gen_hessian_sparse_color_parametric(svec::Vector{SymbolicOutput}, num_total_vars, hessian_matmat!, hessian_IJ)
+function gen_hessian_sparse_color_parametric(svec::Vector{SymbolicOutput}, num_total_vars, hessian_matmat!::Vector{Function}, hessian_IJ::Vector{Function})
     I = Int[]
     J = Int[]
-    for s in svec
-        Is, Js = hessian_IJ(s,false) # NOT canonical indices
+    for k in 1:length(svec)
+        Is, Js = hessian_IJ[k](svec[k],false) # NOT canonical indices
         append!(I, Is)
         append!(J, Js)
     end
@@ -435,7 +435,7 @@ function gen_hessian_sparse_color_parametric(svec::Vector{SymbolicOutput}, num_t
     if length(I) == 0
         # expressions are actually linear, return dummy function
         # TODO!!!
-        return I,J, (x,output_values,ex) -> nothing
+        return I,J, (x,output_values,weights) -> nothing
     end
 
 
@@ -459,7 +459,7 @@ function gen_hessian_sparse_color_parametric(svec::Vector{SymbolicOutput}, num_t
 
     nnz = num_edges(g)
 
-    function eval_h(x,output_values, weights::Vector{Float64})
+    function eval_h(x,output_values, weights::DenseVector{Float64})
         indirect_recover(hessian_matmat!, weights, nnz, rinfo, stored_values, x, svec, matmat_out, matmat_in, dualvec, dualout, output_values)
     end
 

@@ -161,7 +161,7 @@ push!(exlist, @processNLExpr x[1]*x[2]*x[3]*x[4])
 I,J = prep_sparse_hessians(exlist,4)
 V = zeros(length(I))
 lambda = 2.0
-eval_hess!(V, exlist, val, lambda)
+eval_hess!(V, exlist, val, [lambda])
 @test_approx_eq full(sparse(I,J,V)) lambda*[0 0 0 0; val[3]*val[4] 0 0 0; val[2]*val[4] val[1]*val[4] 0 0; val[2]*val[3] val[1]*val[3] val[1]*val[2] 0]
 
 

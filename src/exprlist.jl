@@ -14,13 +14,14 @@ type ExprList
     gradfuncs::Vector{Function}
     hess_matmat_funcs::Vector{Function}
     hess_IJ_funcs::Vector{Function}
-    hessfuncs::Vector{Function} # these can't be shared if coloring is different
-    hessIJ::Vector{(Vector{Int},Vector{Int})}
+    #hessfuncs::Vector{Function} # these can't be shared if coloring is different
+    #hessIJ::Vector{(Vector{Int},Vector{Int})}
+    hessfunc
     exprfuncs::Vector{Function}
 end
 
 
-ExprList() = ExprList(SymbolicOutput[], Function[], Function[], Function[], Function[], Function[], Function[], Array((Vector{Int},Vector{Int}),0), Function[])
+ExprList() = ExprList(SymbolicOutput[], Function[], Function[], Function[], Function[], Function[], nothing, Function[])
 
 Base.push!(l::ExprList, s::SymbolicOutput) = push!(l.exprs, s)
 Base.getindex(l::ExprList, i) = l.exprs[i]
@@ -44,18 +45,18 @@ function prep_sparse_hessians(l::ExprList, num_total_vars; need_expr::Bool=false
     empty!(l.gradfuncs)
     empty!(l.hess_matmat_funcs)
     empty!(l.hess_IJ_funcs)
-    empty!(l.hessfuncs)
-    empty!(l.hessIJ)
+    #empty!(l.hessfuncs)
+    #empty!(l.hessIJ)
     empty!(l.exprfuncs)
 
     N = length(l.exprs)
     sizehint!(l.valfuncs, N)
     sizehint!(l.gradfuncs, N)
-    sizehint!(l.hessfuncs, N)
+    #sizehint!(l.hessfuncs, N)
     referenceExpr = Dict()
 
-    I = Int[]
-    J = Int[]
+    #I = Int[]
+    #J = Int[]
 
     for (i,x) in enumerate(l.exprs)
         if !haskey(referenceExpr, x.hashval)
@@ -66,18 +67,18 @@ function prep_sparse_hessians(l::ExprList, num_total_vars; need_expr::Bool=false
             gf = genfgrad_parametric(x)
             hess_matmat = gen_hessian_matmat_parametric(x, gf)
             hess_IJf = compute_hessian_sparsity_IJ_parametric(x)
-            hI, hJ, hf = gen_hessian_sparse_color_parametric(x, num_total_vars, hess_matmat, hess_IJf)
+            #hI, hJ, hf = gen_hessian_sparse_color_parametric(x, num_total_vars, hess_matmat, hess_IJf)
             push!(l.idxfuncs, idxf)
             push!(l.valfuncs, f)
             push!(l.gradfuncs, gf)
             push!(l.hess_matmat_funcs, hess_matmat)
             push!(l.hess_IJ_funcs, hess_IJf)
-            push!(l.hessfuncs, hf)
-            push!(l.hessIJ, (hI, hJ))
+            #push!(l.hessfuncs, hf)
+            #push!(l.hessIJ, (hI, hJ))
             if need_expr
                 push!(l.exprfuncs, genfexpr_parametric(x))
             end
-            appendToIJ!(I,J,hI,hJ,x)
+            #appendToIJ!(I,J,hI,hJ,x)
         else
             # check if there's a 1-1 mapping from reference indices to
             # indices in this expression
@@ -91,6 +92,7 @@ function prep_sparse_hessians(l::ExprList, num_total_vars; need_expr::Bool=false
             push!(l.hess_matmat_funcs, l.hess_matmat_funcs[refidx])
             push!(l.hess_IJ_funcs, l.hess_IJ_funcs[refidx])
 
+            #=
             matches = (length(x.indexlist) == length(ref.indexlist))
             if matches
                 for k in 1:length(x.indexlist)
@@ -119,8 +121,13 @@ function prep_sparse_hessians(l::ExprList, num_total_vars; need_expr::Bool=false
                     push!(l.exprfuncs, l.exprfuncs[refidx])
                 end
             end
+            =#
         end
     end
+
+
+    I,J, hessfunc = gen_hessian_sparse_color_parametric(l.exprs, num_total_vars, l.hess_matmat_funcs, l.hess_IJ_funcs)
+    l.hessfunc = hessfunc
 
     return I,J
 end
@@ -208,9 +215,10 @@ Base.length(v::VectorView) = v.len
 
 # evaluate the sum of the hessian of each expression at xval
 # each term weighted by lambda
-function eval_hess!(V::DenseVector, l::ExprList, xval, lambda)
+function eval_hess!(V::DenseVector, l::ExprList, xval, lambda::DenseVector{Float64})
     
-    idx = 1
+    l.hessfunc(xval, V, lambda)
+    #=idx = 1
     p = pointer(V)
     for i in 1:length(l.exprs)
         nnz = length(l.hessIJ[i][1])
@@ -222,7 +230,7 @@ function eval_hess!(V::DenseVector, l::ExprList, xval, lambda)
         end
         #scale!(Vsub, lambda[i])
         idx += nnz
-    end
+    end=#
 
 end
 
