@@ -320,6 +320,61 @@ function indirect_recover(hessian_matmat!, nnz, rinfo::RecoveryInfo, stored_valu
 
 end
 
+function indirect_recover(hessian_matmat!, scale::Vector{Float64}, nnz, rinfo::RecoveryInfo, stored_values, x, svec::Vector{SymbolicOutput}, matmat_out, matmat_in, dualvec, dualout, V)
+    N = length(rinfo.color)
+    @assert N == length(x)
+
+    fill!(matmat_out,0.0)
+    fill!(matmat_in,0.0)
+
+    for i in 1:N
+        matmat_in[i,rinfo.color[i]] = 1
+    end
+
+    for r in 1:length(svec)
+        hessian_matmat!(matmat_out, matmat_in,x, dualvec, dualout, svec[r].inputvals, svec[r].mapfromcanonical, scale[r])
+    end
+
+    # now, recover
+    @assert length(V) == nnz+N
+
+    # diagonal entries
+    k = 0
+
+    for i in 1:N
+        k += 1
+        V[k] = matmat_out[i,rinfo.color[i]]
+    end
+
+    for t in 1:length(rinfo.twocolorgraphs)
+        s = rinfo.twocolorgraphs[t]
+        vmap = rinfo.vertexmap[t]
+        order = rinfo.postorder[t]
+        parent = rinfo.parents[t]
+        stored_values[1:num_vertices(s)] = 0.0
+
+        for z in 1:num_vertices(s)
+            v = order[z]
+            p = parent[v]
+            (p == 0) && continue
+
+            i = vmap[v]
+            j = vmap[p]
+
+            value = matmat_out[i,rinfo.color[j]] - stored_values[v]
+            stored_values[p] += value
+
+            k += 1
+            V[k] = value
+        end
+    end
+
+    @assert k == nnz + N
+
+    return V
+
+end
+
 
 export acyclic_coloring, indirect_recover
 
@@ -390,7 +445,8 @@ function gen_hessian_sparse_color_parametric(svec::Vector{SymbolicOutput}, num_t
 
     @assert length(color) == num_vertices(g)
 
-    R = Array(Float64,num_total_vars,num_colors)
+    matmat_in = Array(Float64,num_total_vars,num_colors)
+    matmat_out = Array(Float64,num_total_vars,num_colors)
 
     rinfo = recovery_preprocess(g, color)
 
@@ -403,8 +459,8 @@ function gen_hessian_sparse_color_parametric(svec::Vector{SymbolicOutput}, num_t
 
     nnz = num_edges(g)
 
-    function eval_h(x,output_values, ex::SymbolicOutput)
-        indirect_recover(hessian_matmat!, nnz, rinfo, stored_values, x, ex.inputvals, ex.mapfromcanonical, R, dualvec, dualout, output_values)
+    function eval_h(x,output_values, weights::Vector{Float64})
+        indirect_recover(hessian_matmat!, weights, nnz, rinfo, stored_values, x, svec, matmat_out, matmat_in, dualvec, dualout, output_values)
     end
 
     return I,J, eval_h
