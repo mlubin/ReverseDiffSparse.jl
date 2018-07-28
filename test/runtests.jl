@@ -1,5 +1,5 @@
 using ReverseDiffSparse
-using Base.Test
+using Compat.Test
 using MathProgBase
 
 
@@ -254,7 +254,7 @@ new_nd = simplify_constants(storage,nd,adj,const_values,linearity)
 # user-defined functions
 #Φ(x,y) = 1/3(y)^3 - 2x^2
 # c(x) = cos(x)
-type ΦEvaluator <: MathProgBase.AbstractNLPEvaluator
+struct ΦEvaluator <: MathProgBase.AbstractNLPEvaluator
 end
 function MathProgBase.eval_f(::ΦEvaluator,x)
     @assert length(x) == 2

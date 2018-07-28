@@ -4,6 +4,9 @@ using Base.Meta
 using ForwardDiff
 import Calculus
 import MathProgBase
+using Compat
+using Compat.SparseArrays
+using Compat.LinearAlgebra
 
 const TAG = :rds_tag
 

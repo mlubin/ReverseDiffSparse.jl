@@ -55,7 +55,7 @@ function order_subexpressions(main_expressions::Vector{Vector{NodeData}},subexpr
     end
     N = nsub+length(main_expressions)
     sp = sparse(I,J,ones(length(I)),N,N)
-    cmap = Array{Int}(N)
+    cmap = Array{Int}(undef, N)
     order = reverse(Coloring.reverse_topological_sort_by_dfs(sp.rowval,sp.colptr,N,cmap)[1])
     # remove the subexpressions which never appear anywhere
     # and the indices of the main expressions
@@ -67,7 +67,7 @@ function order_subexpressions(main_expressions::Vector{Vector{NodeData}},subexpr
             push!(individual_order[i],o)
         end
     end
-    
+
     return order_filtered, individual_order
 end
 
