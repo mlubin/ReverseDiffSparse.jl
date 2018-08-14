@@ -1,5 +1,5 @@
 using ReverseDiffSparse
-using Compat.Test, Compat.LinearAlgebra
+using Compat, Compat.Test, Compat.LinearAlgebra
 using MathProgBase
 
 

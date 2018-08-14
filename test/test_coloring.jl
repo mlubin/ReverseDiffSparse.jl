@@ -1,4 +1,4 @@
-using Compat.Test
+using Compat, Compat.Test
 using LightGraphs
 
 function to_adjlist(g::Graph)
