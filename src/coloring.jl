@@ -1,5 +1,6 @@
 module Coloring
 
+using Compat
 import DataStructures
 
 include("topological_sort.jl")
