@@ -66,7 +66,7 @@ function forward_eval(storage::AbstractVector{T}, partials_storage::AbstractVect
                 for c_idx in children_idx
                     @inbounds tmp_prod *= storage[children_arr[c_idx]]
                 end
-                if tmp_prod == zero(T) # inefficient
+                if tmp_prod == zero(T) || n_children <= 2 # inefficient
                     for c_idx in children_idx
                         prod_others = one(T)
                         for c_idx2 in children_idx
@@ -274,7 +274,7 @@ function forward_eval_ϵ(storage::AbstractVector{T},
                     end
                     # By a quirk of floating-point numbers, we can have
                     # anyzero == true && ForwardDiff.value(tmp_prod) != zero(T)
-                    if anyzero # inefficient
+                    if anyzero || n_children <= 2 # inefficient
                         for c_idx in children_idx
                             prod_others = one(ForwardDiff.Dual{TAG,T,N})
                             for c_idx2 in children_idx
